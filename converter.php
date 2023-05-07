@@ -588,18 +588,21 @@ function add_tasks_from_file($responsible_id, $creator_id, $group_id,
       $creator_id, $group_id));
    }
 
-   
+
+   //do not use!!! Server crashes if you try to open a task!
+   /*
    //update tasks in bitrix so they have a father
    foreach($taskArray as $task) {
       $tmp_arr = [];
       $tmp_arr['PARENT_ID'] = $task->getParentId($taskArray);
       update_task($tmp_arr, $task->getBitrixId());
    }
+   */
 }
 
 
 
-//do stuff
+//use this in the actual workflow
 /*
 $root = $this->GetRootActivity();
 $var_file_name = $root->GetVariable('file_name');
@@ -614,6 +617,8 @@ if($var_responsible_id == null) {
 $var_creator_id = $root->GetVariable('creator_id');*/
 
 
+
+//use this instead if you run the code in the dev console
 $var_responsible_id = 660;
 $var_creator_id = 660;
 $var_group_id = 25;
@@ -621,6 +626,7 @@ $userId = 660;
 $var_file_name = "raute.csv";
 add_tasks_from_file($var_responsible_id, $var_creator_id, $var_group_id,
                      $userId, $var_file_name, "Hochgeladene Dateien");
+
 
 ?>
 
