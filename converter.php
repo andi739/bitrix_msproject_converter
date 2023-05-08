@@ -219,7 +219,7 @@ function add_task($arFields, $responsible_id=669, $creator_id=null, $group_id=""
       $success = ($ID>0);
 
       if($success) {
-         echo "added!";
+         //echo "added!";
       }
       else {
          if($e = $APPLICATION->GetException())
@@ -239,7 +239,7 @@ function update_task($arFields, $ID) {
 
       if($success)
       {
-           echo "updated!";
+           //echo "updated!";
 
       }
       else {
@@ -521,9 +521,15 @@ class Task {
       //one number and >1 .d 's / every node below root
       elseif (preg_match("/^\d*(\.(\d)+)+$/", $val)) {
          //push own hierarcy and the hierarcy above
-         array_push($this->tags, $val."Ebene");
-         $val2 = substr($val,0, -2);
-         array_push($this->tags, $val."Ebene");
+         $dotPos = strrpos($val, ".");
+         $val2 = substr($val,0, $dotPos);
+         /*
+         //replace . with - so the bitrix tag filter works
+         $val = str_replace(".", "-", $val);
+         $val2 = str_replace(".", "-", $val2);
+         echo $val; echo $val2;*/
+         array_push($this->tags, $val.".Ebene");
+         array_push($this->tags, $val2.".Ebene");
 
       }
       else {
@@ -555,7 +561,11 @@ class Task {
       $arFields['DEADLINE'] = $this->getDeadline();
       $arFields['TAGS'] = $this->getTags();
       if($taskArray != null) {
-         $arFields['PARENT_ID'] = $this->getParentId();
+         $parent_id = $this->getParentId();
+         if($parent_id != null) {
+            $arFields['PARENT_ID'] = $parent_id;
+         }
+         
       }
       //RESPONSIBLE_ID, CREATED_BY, GROUP_ID will be initialized later
 
@@ -590,14 +600,21 @@ function add_tasks_from_file($responsible_id, $creator_id, $group_id,
 
 
    //do not use!!! Server crashes if you try to open a task!
-   /*
+   
    //update tasks in bitrix so they have a father
    foreach($taskArray as $task) {
-      $tmp_arr = [];
-      $tmp_arr['PARENT_ID'] = $task->getParentId($taskArray);
-      update_task($tmp_arr, $task->getBitrixId());
+      $parent_id = $task->getParentId($taskArray);
+      if($parent_id != null) {
+         $tmp_arr = [];
+         $tmp_arr['PARENT_ID'] = $parent_id;
+
+         echo("bitrix id - kid: ". $task->getBitrixId(). " parent: ". $parent_id);
+
+         update_task($tmp_arr, $task->getBitrixId());
+      }
+      
    }
-   */
+   
 }
 
 
@@ -627,7 +644,7 @@ $var_file_name = "raute.csv";
 add_tasks_from_file($var_responsible_id, $var_creator_id, $var_group_id,
                      $userId, $var_file_name, "Hochgeladene Dateien");
 
-
+//TODO: search: Ebene  die tags fixen, das mit den parents, schauen ob die aufgaben actually korrekt sind!
 ?>
 
 
