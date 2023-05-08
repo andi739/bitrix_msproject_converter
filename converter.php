@@ -617,34 +617,47 @@ function add_tasks_from_file($responsible_id, $creator_id, $group_id,
    
 }
 
+/**
+ * use this in the actual workflow
+ * 
+ * @return [type]
+ */
+function run_in_workflow() {
+   $root = $this->GetRootActivity();
+   $var_file_name = $root->GetVariable('file_name');
+   global $USER;
+   $userId = $USER->GetID();
 
-
-//use this in the actual workflow
-/*
-$root = $this->GetRootActivity();
-$var_file_name = $root->GetVariable('file_name');
-global $USER;
-$userId = $USER->GetID();
-
-$var_group_id = $root->GetVariable('group_id');
-$var_responsible_id = $root->GetVariable('responsible_id');
-if($var_responsible_id == null) {
-   $var_responsible_id = 669;
+   $var_group_id = $root->GetVariable('group_id');
+   $var_responsible_id = $root->GetVariable('responsible_id');
+   if($var_responsible_id == null) {
+      $var_responsible_id = 669;
+   }
+   //if null, bitrix sets it automatically to whoever runs the workflow
+   $var_creator_id = $root->GetVariable('creator_id');
+   add_tasks_from_file($var_responsible_id, $var_creator_id, $var_group_id,
+                        $userId, $var_file_name, "Hochgeladene Dateien");   
 }
-$var_creator_id = $root->GetVariable('creator_id');*/
 
 
 
-//use this instead if you run the code in the dev console
-$var_responsible_id = 660;
-$var_creator_id = 660;
-$var_group_id = 25;
-$userId = 660;
-$var_file_name = "raute.csv";
-add_tasks_from_file($var_responsible_id, $var_creator_id, $var_group_id,
-                     $userId, $var_file_name, "Hochgeladene Dateien");
+/**
+ * use this instead if you run the code in the dev console 
+ * 
+ * @return [type]
+ */
+function run_in_console() {
+   $var_responsible_id = 660;
+   $var_creator_id = 660;
+   $var_group_id = 25;
+   $userId = 660;
+   $var_file_name = "raute.csv";
+   add_tasks_from_file($var_responsible_id, $var_creator_id, $var_group_id,
+                        $userId, $var_file_name, "Hochgeladene Dateien");   
+}
 
-//TODO: search: Ebene  die tags fixen, das mit den parents, schauen ob die aufgaben actually korrekt sind!
+run_in_workflow();
+
 ?>
 
 
