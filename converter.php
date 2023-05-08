@@ -159,7 +159,9 @@ function getFileContents($userId, $fileName, $folderName = null) {
 }
 
 /**
- * created a task with given parameters
+ * creates a task with given parameters
+ * 
+ * @deprecated
  * 
  * @param mixed $title
  * @param mixed $start_date_plan
@@ -208,6 +210,16 @@ function __add_task($title, $start_date_plan, $end_date_plan, $deadline, $descri
    return $ID;
 }
 
+/**
+ * creates a task in bitrix
+ * 
+ * @param mixed $arFields
+ * @param mixed $responsible_id=669
+ * @param mixed $creator_id=null
+ * @param mixed $group_id=""
+ * 
+ * @return [type]
+ */
 function add_task($arFields, $responsible_id=669, $creator_id=null, $group_id="") {
    $arFields["RESPONSIBLE_ID"] = $responsible_id;
    $arFields["CREATED_BY"] = $creator_id;
@@ -232,6 +244,14 @@ function add_task($arFields, $responsible_id=669, $creator_id=null, $group_id=""
    return $ID;
 }
 
+/**
+ * updated a task with given values in an associative array
+ * 
+ * @param mixed $arFields
+ * @param mixed $ID
+ * 
+ * @return [type]
+ */
 function update_task($arFields, $ID) {
    if (CModule::IncludeModule("tasks")) {
       $obTask = new CTasks;
@@ -309,6 +329,13 @@ class Task {
    }
   }
 
+  /**
+   * returns the bitrix id of a task's parent
+   * 
+   * @param mixed $taskArray
+   * 
+   * @return [type]
+   */
   public function getParentId($taskArray) {
    if(strlen($this->hierarcy_level) < 2) {
       return null;
@@ -573,8 +600,19 @@ class Task {
    }
 }
 
-function add_tasks_from_file($responsible_id, $creator_id, $group_id,
-                              $userId, $fileName, $folderName = null) {
+/**
+ * combined function, to get file content, transform it and finally create the tasks in bitrix
+ * 
+ * @param mixed $responsible_id
+ * @param mixed $creator_id
+ * @param mixed $group_id
+ * @param mixed $userId
+ * @param mixed $fileName
+ * @param null $folderName
+ * 
+ * @return [type]
+ */
+function add_tasks_from_file($responsible_id, $creator_id, $group_id, $userId, $fileName, $folderName = null) {
    $filetext = getFileContents($userId, $fileName, $folderName);
    $transformed_content = make_associative_array($filetext);
 
