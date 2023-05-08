@@ -622,21 +622,28 @@ function add_tasks_from_file($responsible_id, $creator_id, $group_id,
  * 
  * @return [type]
  */
-function run_in_workflow() {
-   $root = $this->GetRootActivity();
-   $var_file_name = $root->GetVariable('file_name');
-   global $USER;
-   $userId = $USER->GetID();
-
+function run_in_workflow($root, $userId) {
+   
    $var_group_id = $root->GetVariable('group_id');
    $var_responsible_id = $root->GetVariable('responsible_id');
    if($var_responsible_id == null) {
       $var_responsible_id = 669;
-   }
-   //if null, bitrix sets it automatically to whoever runs the workflow
+   }   
    $var_creator_id = $root->GetVariable('creator_id');
+   if($var_creator_id == null) {
+    $var_creator_id = 669;
+   }
+   $var_file_name = $root->GetVariable('file_name');
+   //parse because in bitrix you only get a link
+   //[url=/bitrix/tools/bizproc_show_file.
+   //php?f=paragraph.csv&i=4525&h=6b0837619af9f9d235659e7f98af333f]paragraph.csv[/url] 
+   $var_file_name = $var_file_name[0];
+   $pos1 = strpos($var_file_name, "]") +1;
+   $pos2 = strpos($var_file_name, "[/url]");
+   $parsed_file_name = substr($var_file_name, $pos1, $pos2-$pos1);
+
    add_tasks_from_file($var_responsible_id, $var_creator_id, $var_group_id,
-                        $userId, $var_file_name, "Hochgeladene Dateien");   
+                        $userId, $parsed_file_name, "Hochgeladene Dateien");   
 }
 
 
@@ -646,7 +653,7 @@ function run_in_workflow() {
  * 
  * @return [type]
  */
-function run_in_console() {
+function run_in_console() { 
    $var_responsible_id = 660;
    $var_creator_id = 660;
    $var_group_id = 25;
@@ -656,7 +663,10 @@ function run_in_console() {
                         $userId, $var_file_name, "Hochgeladene Dateien");   
 }
 
-run_in_workflow();
+$rootActivity = $this->GetRootActivity();
+global $USER;
+$userId = $USER->GetID();
+run_in_workflow($rootActivity, $userId);
 
 ?>
 
