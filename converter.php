@@ -219,7 +219,7 @@ function add_task($arFields, $responsible_id=669, $creator_id=null, $group_id=""
       $success = ($ID>0);
 
       if($success) {
-         //echo "added!";
+         echo "added!";
       }
       else {
          if($e = $APPLICATION->GetException())
@@ -239,7 +239,7 @@ function update_task($arFields, $ID) {
 
       if($success)
       {
-           //echo "updated!";
+           echo "updated!";
 
       }
       else {
@@ -299,7 +299,7 @@ class Task {
    foreach($task_array as $task) {
       if($task instanceof Task) {
          if($task->getHierarcyLevel() == $hierarcy_level) {
-            echo "found daddy";
+            echo "found parent";
             return $task;
          }
       }
