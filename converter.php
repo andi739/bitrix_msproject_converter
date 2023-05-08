@@ -599,7 +599,7 @@ function add_tasks_from_file($responsible_id, $creator_id, $group_id,
    }
 
 
-   //do not use!!! Server crashes if you try to open a task!
+   
    
    //update tasks in bitrix so they have a father
    foreach($taskArray as $task) {
