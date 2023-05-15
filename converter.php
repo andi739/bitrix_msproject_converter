@@ -302,6 +302,9 @@ class Task {
       elseif(preg_match("/^\d{2}(\.)\d{2}(\.)(\d{2}|\d{4})$/", $date)) {
           return $date;
       }
+      elseif($date == "") {
+         return "";
+      }
       else {
           throw new Exception('Unsupported Date Format!');
       }
