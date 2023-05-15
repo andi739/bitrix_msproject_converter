@@ -543,21 +543,15 @@ class Task {
       $val = $this->hierarcy_level;
       //only one number / Root
       if (preg_match("/^\d*$/", $val)) {
-         array_push($this->tags, $val.".Ebene");
+         //_ is used instead of the dot because . is ignored by the system
+         array_push($this->tags, $val."_");
+
       }
       //one number and >1 .d 's / every node below root
       elseif (preg_match("/^\d*(\.(\d)+)+$/", $val)) {
-         //push own hierarcy and the hierarcy above
-         $dotPos = strrpos($val, ".");
-         $val2 = substr($val,0, $dotPos);
-         /*
-         //replace . with - so the bitrix tag filter works
-         $val = str_replace(".", "-", $val);
-         $val2 = str_replace(".", "-", $val2);
-         echo $val; echo $val2;*/
-         array_push($this->tags, $val.".Ebene");
-         array_push($this->tags, $val2.".Ebene");
-
+         //because the bitrix search only matches the search query (contains(string)), there is only one tag needed as the system return all tagged items within the searched hierarchy and below
+         $replaced = str_replace(".", "_", $val);
+         array_push($this->tags, $replaced."_");
       }
       else {
          throw new Exception('Invalid psp_Code: '.$val.'Something with the formatting went wrong!');
