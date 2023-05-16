@@ -10,7 +10,62 @@
  * 
  * @return [type]
  */
-function make_associative_array($filetext, $delimiter = '#', $drop_unnecessary = true) {
+function make_associative_array_csv($filetext, $delimiter = '#', $drop_unnecessary = true) {
+   //sonst breaken die umlaute
+   $filetext_encoded = utf8_encode($filetext);
+
+   $textLines = explode("\n", $filetext_encoded);
+   if(strpos($textLines[0],"sep=") !== false) {
+      //get the separator and remove 0th line
+      $delimiter = $textLines[0][4];
+      array_shift($textLines);  
+   }
+   //put file contents into an associative array, so we can work better with the data!
+
+   //get column names
+   $column_names = explode($delimiter, $textLines[0]);
+   array_shift($textLines);
+   //create array without body
+   $table = [];
+   foreach($column_names as $column) {
+      $table += [$column => []];
+   }
+
+   $keys = array_keys($table); //$table[$keys[i]] for indexing of associative array
+
+   //insert values for the key value pairs
+   foreach($textLines as $line) {
+      $fields = explode($delimiter, $line);
+      //skip if empty line
+      if(count($fields) == 1) {
+         continue;
+      }
+
+      if(count($table) != count($fields)) {
+         throw new Exception('Amount of Column elements ('.count($table).') and Field elements ('.count($fields).') is unequal,'
+         .'perhaps the delimiter char is used in the text somewhere?');
+      } else {
+         for($i=0; $i < count($fields);$i++) {
+            array_push($table[$keys[$i]], $fields[$i]);
+         }
+      }
+   }
+   //remove unnecessary columns -> if $drop_unnecessary = true
+   if($drop_unnecessary) {
+      foreach($keys as $key) { //Spätestes_Ende = Frist, //PSP_Code: Teilaufgabe von, Tags (für das Manuell verwendete system)
+         if($key != "Vorgangsname" && $key != "Anfangstermin" && $key != "Endtermin" && $key != "Spätestes_Ende" && $key != "PSP_Code") {
+            unset($table[$key]);
+         }   
+      }
+   }
+   /*PSP_Code am Beispiel MEnsy
+   var_dump($table['PSP_Code']); -> string(11) "1.5.5.4.1.1"
+    = (1)Master Energie.... _> (5)MEnsy- Kursdurchfürhung _> (5)5.Sem _> (4)Abschluss Teilnehmer 
+   _> (1)Ausstellung der Abschlussdok _> (1) Weiterleitung an Dekan .... */
+   return $table;
+}
+
+function make_associative_array_xml($filetext, $delimiter = '#', $drop_unnecessary = true) {
    //sonst breaken die umlaute
    $filetext_encoded = utf8_encode($filetext);
 
@@ -145,7 +200,7 @@ function getFileContents($userId, $fileName, $folderName = null) {
    if ((mb_substr($filenameInternal, 0, 1) == '/') && ($file instanceof Bitrix\Main\IO\File)) {
        try {
            $src = $file->open(Bitrix\Main\IO\FileStreamOpenMode::READ);
-           $return_string = stream_get_contents($src);
+           $return_string = stream_get_contents($src); //TODO für xml version statt dem string einen stream returnen bzw. assArray & getContents in einer funktion
            $file->close();
            
        }
@@ -611,7 +666,16 @@ class Task {
  */
 function add_tasks_from_file($responsible_id, $creator_id, $group_id, $userId, $fileName, $folderName = null) {
    $filetext = getFileContents($userId, $fileName, $folderName);
-   $transformed_content = make_associative_array($filetext);
+   $transformed_content;
+   if(preg_match("/^\w+.csv$/", $fileName)) {
+      $transformed_content = make_associative_array_csv($filetext);
+   }
+   elseif(preg_match("/^\w+.xml$/", $fileName)) {
+      $transformed_content = make_associative_array_xml($filetext);
+   } else {
+      throw new Exception("Unsupported file type given!");
+   }
+   
 
    $keys = array_keys($transformed_content); //$table[$keys[i]] for indexing of associative array
    //Create a task object for every row
@@ -706,4 +770,6 @@ run_in_workflow($rootActivity, $userId);
 ?>
 
 
-
+//if fileending == csv: do make_associative_array_csv
+//if fileending == xml: do make_associative_array_xml
+//else throw exception: Unsupported file type
