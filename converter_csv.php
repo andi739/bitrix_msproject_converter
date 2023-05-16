@@ -92,7 +92,7 @@ function getFileContents($userId, $fileName, $folderName = null) {
        throw new Exception('Could not load \'disk\' module.');
    } 
    $arFile = $file->getFileId(); 
-   
+    
    $content_type = "";
    $filenameInternal = '';
 
