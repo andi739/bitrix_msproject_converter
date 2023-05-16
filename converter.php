@@ -65,59 +65,134 @@ function make_associative_array_csv($filetext, $delimiter = '#', $drop_unnecessa
    return $table;
 }
 
-function make_associative_array_xml($filetext, $delimiter = '#', $drop_unnecessary = true) {
-   //sonst breaken die umlaute
-   $filetext_encoded = utf8_encode($filetext);
+function make_tasks_from_xml($userId, $fileName, $folderName = null, $byteLength = 5000) {
 
-   $textLines = explode("\n", $filetext_encoded);
-   if(strpos($textLines[0],"sep=") !== false) {
-      //get the separator and remove 0th line
-      $delimiter = $textLines[0][4];
-      array_shift($textLines);  
-   }
-   //put file contents into an associative array, so we can work better with the data!
-
-   //get column names
-   $column_names = explode($delimiter, $textLines[0]);
-   array_shift($textLines);
-   //create array without body
-   $table = [];
-   foreach($column_names as $column) {
-      $table += [$column => []];
-   }
-
-   $keys = array_keys($table); //$table[$keys[i]] for indexing of associative array
-
-   //insert values for the key value pairs
-   foreach($textLines as $line) {
-      $fields = explode($delimiter, $line);
-      //skip if empty line
-      if(count($fields) == 1) {
-         continue;
-      }
-
-      if(count($table) != count($fields)) {
-         throw new Exception('Amount of Column elements ('.count($table).') and Field elements ('.count($fields).') is unequal,'
-         .'perhaps the delimiter char is used in the text somewhere?');
-      } else {
-         for($i=0; $i < count($fields);$i++) {
-            array_push($table[$keys[$i]], $fields[$i]);
+      //we get the "file", that doesn't hold the actual content lol
+      if (\Bitrix\Main\Loader::includeModule('disk')) {  
+         $storage = \Bitrix\Disk\Driver::getInstance()->getStorageByUserId($userId);
+         if($folderName == null) {
+             $folder = $storage->getRootObject();
+         } else {
+             $folder = $storage->getChild(array('=NAME' => $folderName,  
+             'TYPE' => \Bitrix\Disk\Internals\FolderTable::TYPE_FOLDER));
          }
-      }
-   }
-   //remove unnecessary columns -> if $drop_unnecessary = true
-   if($drop_unnecessary) {
-      foreach($keys as $key) { //Spätestes_Ende = Frist, //PSP_Code: Teilaufgabe von, Tags (für das Manuell verwendete system)
-         if($key != "Vorgangsname" && $key != "Anfangstermin" && $key != "Endtermin" && $key != "Spätestes_Ende" && $key != "PSP_Code") {
-            unset($table[$key]);
-         }   
-      }
-   }
-   /*PSP_Code am Beispiel MEnsy
-   var_dump($table['PSP_Code']); -> string(11) "1.5.5.4.1.1"
-    = (1)Master Energie.... _> (5)MEnsy- Kursdurchfürhung _> (5)5.Sem _> (4)Abschluss Teilnehmer 
-   _> (1)Ausstellung der Abschlussdok _> (1) Weiterleitung an Dekan .... */
-   return $table;
+        $file = $folder->getChild(array('=NAME' => $fileName, 
+          'TYPE' => \Bitrix\Disk\Internals\FileTable::TYPE_FILE)); 
+  
+     }
+     else {
+         throw new Exception('Could not load \'disk\' module.');
+     } 
+     $arFile = $file->getFileId(); 
+      
+     $content_type = "";
+     $filenameInternal = '';
+  
+  
+     if ($arFile = CFile::GetFileArray($arFile)) {
+         $filenameInternal = $arFile['SRC'];
+     }
+     else {
+       throw new Exception('Filename was empty.');
+     }
+  
+     if(isset($arFile["CONTENT_TYPE"])) {
+         $content_type = $arFile["CONTENT_TYPE"];
+     }
+     //we produce resized jpg for original bmp
+     if($content_type == '' || $content_type == "image/bmp") {
+         if(isset($arFile["tmp_name"])) {
+             $content_type = CFile::GetContentType($arFile["tmp_name"], true);
+         }
+         else {
+             $content_type = CFile::GetContentType($_SERVER["DOCUMENT_ROOT"].$filenameInternal);
+         }
+     }
+  
+     if($arFile["ORIGINAL_NAME"] <> '')
+         $name = $arFile["ORIGINAL_NAME"];
+     elseif($arFile["name"] <> '')
+         $name = $arFile["name"];
+     else
+         $name = $arFile["FILE_NAME"];
+     if(isset($arFile["EXTENSION_SUFFIX"]) && $arFile["EXTENSION_SUFFIX"] <> '')
+         $name = mb_substr($name, 0, -mb_strlen($arFile["EXTENSION_SUFFIX"]));
+  
+     $name = str_replace(array("\n", "\r"), '', $name);
+  
+  
+  
+     $content_type = CFile::NormalizeContentType($content_type);
+     $src = null;
+     $file = null;
+  
+     if (mb_substr($filenameInternal, 0, 1) == '/') {
+         $file = new Bitrix\Main\IO\File($_SERVER['DOCUMENT_ROOT']. $filenameInternal);
+     }
+     elseif (isset($arFile['tmp_name'])) {
+         $file = new Bitrix\Main\IO\File($arFile['tmp_name']);
+     }
+     //now we get the actual file contents using a stream
+     if ((mb_substr($filenameInternal, 0, 1) == '/') && ($file instanceof Bitrix\Main\IO\File)) {
+         try{
+             $src = $file->open(Bitrix\Main\IO\FileStreamOpenMode::READ);
+             
+             $taskArray = [];
+             $tmp_str = "";
+             while(!strpos($tmp_str, "<Tasks>")) {
+               $current_chunk_str = stream_get_contents($src, $byteLength); 
+               //safety measure incase the source file corrupted so that the loop doesn't run for ever
+               if($current_chunk_str == "") {
+                  break;
+               }
+               //keep the last chars incase the keyword has started e.g. <tas
+               //the rest is unnessecary
+               $tmp_str = substr($tmp_str, 0, -10);
+               $tmp_str .= $current_chunk_str;
+             }
+             //now we are in the <tasks></tasks> part, the where all the relevant data is.
+             while(true) { 
+               while(!($pos_task_begin = strpos($tmp_str, "<Task>")) || !($pos_task_end = strpos($tmp_str, "</Task>"))) {
+                 //when we've found </Tasks>, but no <Task>, there must be no tasks left and therefore we break out of both(2) while loops
+                 if(strpos($tmp_str, "</Tasks>")) {
+                   echo "\nfound </Tasks>"; 
+                   break 2;
+                 }
+                 
+                 $current_chunk_str = stream_get_contents($src, $byteLength); 
+                 //safety measure incase the source file corrupted so that the loop doesn't run for ever
+                 if($current_chunk_str == "") {
+                    break 2;
+                 }
+                 $tmp_str .= $current_chunk_str;
+
+               }
+               //now we have a task
+               if($pos_task_begin < $pos_task_end) {
+                  //fill task object and add to $taskArray
+                  $task_str = substr($tmp_str,$pos_task_begin, $pos_task_end-$pos_task_begin+strlen("</Task>"));
+                  //TODO
+                  //remove everything from string until first </task> including the </task> !!!
+                  $tmp_str = substr($tmp_str, $pos_task_end+strlen("</Task>"));
+                 
+               } else {
+                  throw new Exception("Invalid Task Cursors! start_cursor: ".$pos_task_begin."   end_cursor: ".$pos_task_end);
+               }
+
+               //eig muss ja in jede while loop und in die if anweisung: wenn contains </tasks> dann breaken, wie setz ich das schön um?
+
+             }
+
+             $file->close();
+             
+         }
+         catch(IO\IoException $e) {
+             echo 'Caught exception: ',  $e->getMessage(), "\n";
+             return false;
+         }
+     }
+  
+     return $taskArray;
 }
 
 /**
@@ -200,7 +275,7 @@ function getFileContents($userId, $fileName, $folderName = null) {
    if ((mb_substr($filenameInternal, 0, 1) == '/') && ($file instanceof Bitrix\Main\IO\File)) {
        try {
            $src = $file->open(Bitrix\Main\IO\FileStreamOpenMode::READ);
-           $return_string = stream_get_contents($src); //TODO für xml version statt dem string einen stream returnen bzw. assArray & getContents in einer funktion
+           $return_string = stream_get_contents($src);
            $file->close();
            
        }
@@ -211,58 +286,6 @@ function getFileContents($userId, $fileName, $folderName = null) {
    }
 
    return $return_string;
-}
-
-/**
- * creates a task with given parameters
- * 
- * @deprecated
- * 
- * @param mixed $title
- * @param mixed $start_date_plan
- * @param mixed $end_date_plan
- * @param mixed $deadline
- * @param mixed $description=""
- * @param mixed $responsible_id=669
- * @param mixed 
- * 
- * @return [type]
- */
-function __add_task($title, $start_date_plan, $end_date_plan, $deadline, $description="", 
-         $responsible_id=669, $creator_id=null, $group_id="") {
-   if (CModule::IncludeModule("tasks")) {
-      $arFields = Array(
-         "TITLE" => $title,
-         "DESCRIPTION" => $description,
-         "RESPONSIBLE_ID" => $responsible_id,
-         //if null the person, who started the workflow is the creator
-         "CREATED_BY" => $creator_id, 
-         "GROUP_ID" => $group_id,
-         "START_DATE_PLAN" => $start_date_plan,
-         "END_DATE_PLAN" => $end_date_plan,
-   		"DEADLINE" => $deadline
-   		//"MATCH_WORK_TIME"
-         //"TAGS"
-         //"DEPENDS_ON" = vorherige aufgabe, relevant für gantt?
-         //"PARENT_ID" = Teilaufgabe von?
-       );
-
-      $obTask = new CTasks;
-      $ID = $obTask->Add($arFields);
-      $success = ($ID>0);
-
-      if($success) {
-         echo "Ok!";
-      }
-      else {
-         if($e = $APPLICATION->GetException())
-            echo "Error: ".$e->GetString();  
-      }
-   } 
-   else {
-      throw new Exception('Bitrix Task Module could not be included. No tasks were created.');
-   }
-   return $ID;
 }
 
 /**
@@ -665,13 +688,13 @@ class Task {
  * @return [type]
  */
 function add_tasks_from_file($responsible_id, $creator_id, $group_id, $userId, $fileName, $folderName = null) {
-   $filetext = getFileContents($userId, $fileName, $folderName);
    $transformed_content;
    if(preg_match("/^\w+.csv$/", $fileName)) {
+      $filetext = getFileContents($userId, $fileName, $folderName);
       $transformed_content = make_associative_array_csv($filetext);
    }
    elseif(preg_match("/^\w+.xml$/", $fileName)) {
-      $transformed_content = make_associative_array_xml($filetext);
+      $transformed_content = make_tasks_from_xml($userId, $fileName, $folderName);
    } else {
       throw new Exception("Unsupported file type given!");
    }
@@ -768,8 +791,3 @@ $userId = $USER->GetID();
 run_in_workflow($rootActivity, $userId);
 
 ?>
-
-
-//if fileending == csv: do make_associative_array_csv
-//if fileending == xml: do make_associative_array_xml
-//else throw exception: Unsupported file type
