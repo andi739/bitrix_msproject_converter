@@ -65,6 +65,36 @@ function make_associative_array_csv($filetext, $delimiter = '#', $drop_unnecessa
    return $table;
 }
 
+function make_tasks_from_csv($filetext, $delimiter = '#', $drop_unnecessary = true) {
+   $transformed_content = make_associative_array_csv($filetext, $delimiter, $drop_unnecessary);
+
+   $keys = array_keys($transformed_content); //$table[$keys[i]] for indexing of associative array
+   //Create a task object for every row
+   $taskArray = [];
+   for($i=0; $i < count($transformed_content[$keys[0]]); $i++) {
+      $task = new Task;
+      $task->setTitle($transformed_content['Vorgangsname'][$i]);
+      $task->setStartDatePlan($transformed_content['Anfangstermin'][$i]);
+      $task->setEndDatePlan($transformed_content['Endtermin'][$i]);
+      $task->setDeadline($transformed_content['Spätestes_Ende'][$i]);
+      $task->setHierarcyLevel($transformed_content['PSP_Code'][$i]);
+      $task->setTags();
+      array_push($taskArray, $task);
+   }
+
+   return $taskArray;
+}
+
+/**
+ * reads (buffered) a xml-file and returns an array of Task objects
+ * 
+ * @param mixed $userId
+ * @param mixed $fileName
+ * @param null $folderName
+ * @param int $byteLength
+ * 
+ * @return [type]
+ */
 function make_tasks_from_xml($userId, $fileName, $folderName = null, $byteLength = 5000) {
 
       //we get the "file", that doesn't hold the actual content lol
@@ -136,8 +166,7 @@ function make_tasks_from_xml($userId, $fileName, $folderName = null, $byteLength
      if ((mb_substr($filenameInternal, 0, 1) == '/') && ($file instanceof Bitrix\Main\IO\File)) {
          try{
              $src = $file->open(Bitrix\Main\IO\FileStreamOpenMode::READ);
-             
-             $taskArray = [];
+
              $tmp_str = "";
              while(!strpos($tmp_str, "<Tasks>")) {
                $current_chunk_str = stream_get_contents($src, $byteLength); 
@@ -151,6 +180,7 @@ function make_tasks_from_xml($userId, $fileName, $folderName = null, $byteLength
                $tmp_str .= $current_chunk_str;
              }
              //now we are in the <tasks></tasks> part, the where all the relevant data is.
+             $taskArray = [];
              while(true) { 
                while(!($pos_task_begin = strpos($tmp_str, "<Task>")) || !($pos_task_end = strpos($tmp_str, "</Task>"))) {
                  //when we've found </Tasks>, but no <Task>, there must be no tasks left and therefore we break out of both(2) while loops
@@ -171,7 +201,25 @@ function make_tasks_from_xml($userId, $fileName, $folderName = null, $byteLength
                if($pos_task_begin < $pos_task_end) {
                   //fill task object and add to $taskArray
                   $task_str = substr($tmp_str,$pos_task_begin, $pos_task_end-$pos_task_begin+strlen("</Task>"));
-                  //TODO
+
+                  $task_tags = ["Name", "WBS", "Start", "Finish", "LateFinish"];
+                  $tmp_arr = [];
+
+                  foreach ($task_tags as $tag) {
+                     $pos_begin  = strpos($task_str, "<".$tag.">"); 
+                     $pos_end = strpos($task_str, "</".$tag.">");
+                     array_push($tmp_arr, trim(substr($task_str, $pos_begin+strlen("<".$tag.">"), $pos_end-$pos_begin-strlen("</".$tag.">")+1)));
+                  }
+                 //add task as array to array
+                 $task = new Task;
+                 $task->setTitle($tmp_arr[0]);
+                 $task->setHierarcyLevel($tmp_arr[1]);
+                 $task->setStartDatePlan($tmp_arr[2]);
+                 $task->setEndDatePlan($tmp_arr[3]);
+                 $task->setDeadline($tmp_arr[4]);
+                 $task->setTags();
+                 array_push($taskArray, $task);
+
                   //remove everything from string until first </task> including the </task> !!!
                   $tmp_str = substr($tmp_str, $pos_task_end+strlen("</Task>"));
                  
@@ -379,6 +427,9 @@ class Task {
       }
       elseif(preg_match("/^\d{2}(\.)\d{2}(\.)(\d{2}|\d{4})$/", $date)) {
           return $date;
+      }
+      elseif(preg_match("/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/",$date)) {
+         return substr($date, 8,2).".".substr($date, 5,2).".".substr($date, 0,4);
       }
       elseif($date == "") {
          return "";
@@ -688,32 +739,17 @@ class Task {
  * @return [type]
  */
 function add_tasks_from_file($responsible_id, $creator_id, $group_id, $userId, $fileName, $folderName = null) {
-   $transformed_content;
+   $taskArray;
    if(preg_match("/^\w+.csv$/", $fileName)) {
       $filetext = getFileContents($userId, $fileName, $folderName);
-      $transformed_content = make_associative_array_csv($filetext);
+      $taskArray = make_tasks_from_csv($filetext);
    }
    elseif(preg_match("/^\w+.xml$/", $fileName)) {
-      $transformed_content = make_tasks_from_xml($userId, $fileName, $folderName);
+      $taskArray = make_tasks_from_xml($userId, $fileName, $folderName);
    } else {
       throw new Exception("Unsupported file type given!");
    }
    
-
-   $keys = array_keys($transformed_content); //$table[$keys[i]] for indexing of associative array
-   //Create a task object for every row
-   $taskArray = [];
-   for($i=0; $i < count($transformed_content[$keys[0]]); $i++) {
-      $task = new Task;
-      $task->setTitle($transformed_content['Vorgangsname'][$i]);
-      $task->setStartDatePlan($transformed_content['Anfangstermin'][$i]);
-      $task->setEndDatePlan($transformed_content['Endtermin'][$i]);
-      $task->setDeadline($transformed_content['Spätestes_Ende'][$i]);
-      $task->setHierarcyLevel($transformed_content['PSP_Code'][$i]);
-      $task->setTags();
-      array_push($taskArray, $task);
-   }
-
    //create tasks in bitrix
    foreach($taskArray as $task) {
       $task->setBitrixId(add_task($task->getArFields(), $responsible_id, 
@@ -733,10 +769,8 @@ function add_tasks_from_file($responsible_id, $creator_id, $group_id, $userId, $
          echo("bitrix id - kid: ". $task->getBitrixId(). " parent: ". $parent_id);
 
          update_task($tmp_arr, $task->getBitrixId());
-      }
-      
-   }
-   
+      }  
+   } 
 }
 
 /**
@@ -778,9 +812,9 @@ function run_in_workflow($root, $userId) {
 function run_in_console() { 
    $var_responsible_id = 660;
    $var_creator_id = 660;
-   $var_group_id = 25;
+   $var_group_id = 34;
    $userId = 660;
-   $var_file_name = "raute.csv";
+   $var_file_name = "mensy.xml";
    add_tasks_from_file($var_responsible_id, $var_creator_id, $var_group_id,
                         $userId, $var_file_name, "Hochgeladene Dateien");   
 }
