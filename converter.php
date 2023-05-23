@@ -65,6 +65,15 @@ function make_associative_array_csv($filetext, $delimiter = '#', $drop_unnecessa
    return $table;
 }
 
+/**
+ * takes raw .csv text and returns an array of Task objects
+ * 
+ * @param mixed $filetext
+ * @param string $delimiter
+ * @param bool $drop_unnecessary
+ * 
+ * @return [type]
+ */
 function make_tasks_from_csv($filetext, $delimiter = '#', $drop_unnecessary = true) {
    $transformed_content = make_associative_array_csv($filetext, $delimiter, $drop_unnecessary);
 
