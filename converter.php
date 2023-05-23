@@ -68,7 +68,6 @@ function make_associative_array_csv($filetext, $delimiter = '#', $drop_unnecessa
 function make_tasks_from_csv($filetext, $delimiter = '#', $drop_unnecessary = true) {
    $transformed_content = make_associative_array_csv($filetext, $delimiter, $drop_unnecessary);
 
-   //TODO task creation in make_...._csv und die jew. fct umbennen in make_tasks_from_csv, den rest entsprechend anpassen!
    $keys = array_keys($transformed_content); //$table[$keys[i]] for indexing of associative array
    //Create a task object for every row
    $taskArray = [];
@@ -200,8 +199,6 @@ function make_tasks_from_xml($userId, $fileName, $folderName = null, $byteLength
                }
                //now we have a task
                if($pos_task_begin < $pos_task_end) {
-                  //TODO maybe use FFI C-code stringbuilder instead of php's string for better performance
-                  //TODO mayb das mit uft8 encode, falls umlaute breaken !Testen!
                   //fill task object and add to $taskArray
                   $task_str = substr($tmp_str,$pos_task_begin, $pos_task_end-$pos_task_begin+strlen("</Task>"));
 
@@ -209,7 +206,6 @@ function make_tasks_from_xml($userId, $fileName, $folderName = null, $byteLength
                   $tmp_arr = [];
 
                   foreach ($task_tags as $tag) {
-                     //TODO das als array = [['<Name>', '</Name>'], ['<WBS>','</WBS>'], etc.] und  die substr params schön setzen
                      $pos_begin  = strpos($task_str, "<".$tag.">"); 
                      $pos_end = strpos($task_str, "</".$tag.">");
                      array_push($tmp_arr, trim(substr($task_str, $pos_begin+strlen("<".$tag.">"), $pos_end-$pos_begin-strlen("</".$tag.">")+1)));
@@ -221,6 +217,7 @@ function make_tasks_from_xml($userId, $fileName, $folderName = null, $byteLength
                  $task->setStartDatePlan($tmp_arr[2]);
                  $task->setEndDatePlan($tmp_arr[3]);
                  $task->setDeadline($tmp_arr[4]);
+                 $task->setTags();
                  array_push($taskArray, $task);
 
                   //remove everything from string until first </task> including the </task> !!!
@@ -817,7 +814,7 @@ function run_in_console() {
    $var_creator_id = 660;
    $var_group_id = 34;
    $userId = 660;
-   $var_file_name = "test.xml";
+   $var_file_name = "mensy.xml";
    add_tasks_from_file($var_responsible_id, $var_creator_id, $var_group_id,
                         $userId, $var_file_name, "Hochgeladene Dateien");   
 }
