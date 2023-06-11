@@ -1,5 +1,6 @@
 <?php
 
+$IMPLEMENTAITON_USED;
 
 /**
  * takes a csv file and returns an associative array with column names as keys
@@ -95,17 +96,15 @@ function make_tasks_from_csv($filetext, $delimiter = '#', $drop_unnecessary = tr
 }
 
 /**
- * reads (buffered) a xml-file and returns an array of Task objects
+ * Returns a file variable. use open(Bitrix\Main\IO\FileStreamOpenMode::READ) and close()
  * 
  * @param mixed $userId
  * @param mixed $fileName
  * @param null $folderName
- * @param int $byteLength
  * 
  * @return [type]
  */
-function make_tasks_from_xml($userId, $fileName, $folderName = null, $byteLength = 5000) {
-
+function get_bitrix_file_handle($userId, $fileName, $folderName = null) {
       //we get the "file", that doesn't hold the actual content lol
       if (\Bitrix\Main\Loader::includeModule('disk')) {  
          $storage = \Bitrix\Disk\Driver::getInstance()->getStorageByUserId($userId);
@@ -171,85 +170,143 @@ function make_tasks_from_xml($userId, $fileName, $folderName = null, $byteLength
      elseif (isset($arFile['tmp_name'])) {
          $file = new Bitrix\Main\IO\File($arFile['tmp_name']);
      }
-     //now we get the actual file contents using a stream
      if ((mb_substr($filenameInternal, 0, 1) == '/') && ($file instanceof Bitrix\Main\IO\File)) {
-         try{
-             $src = $file->open(Bitrix\Main\IO\FileStreamOpenMode::READ);
-
-             $tmp_str = "";
-             while(!strpos($tmp_str, "<Tasks>")) {
-               $current_chunk_str = stream_get_contents($src, $byteLength); 
-               //safety measure incase the source file corrupted so that the loop doesn't run for ever
-               if($current_chunk_str == "") {
-                  break;
-               }
-               //keep the last chars incase the keyword has started e.g. <tas
-               //the rest is unnessecary
-               $tmp_str = substr($tmp_str, 0, -10);
-               $tmp_str .= $current_chunk_str;
-             }
-             //now we are in the <tasks></tasks> part, the where all the relevant data is.
-             $taskArray = [];
-             while(true) { 
-               while(!($pos_task_begin = strpos($tmp_str, "<Task>")) || !($pos_task_end = strpos($tmp_str, "</Task>"))) {
-                 //when we've found </Tasks>, but no <Task>, there must be no tasks left and therefore we break out of both(2) while loops
-                 if(strpos($tmp_str, "</Tasks>")) {
-                   echo "\nfound </Tasks>"; 
-                   break 2;
-                 }
-                 
-                 $current_chunk_str = stream_get_contents($src, $byteLength); 
-                 //safety measure incase the source file corrupted so that the loop doesn't run for ever
-                 if($current_chunk_str == "") {
-                    break 2;
-                 }
-                 $tmp_str .= $current_chunk_str;
-
-               }
-               //now we have a task
-               if($pos_task_begin < $pos_task_end) {
-                  //fill task object and add to $taskArray
-                  $task_str = substr($tmp_str,$pos_task_begin, $pos_task_end-$pos_task_begin+strlen("</Task>"));
-
-                  $task_tags = ["Name", "WBS", "Start", "Finish", "LateFinish"];
-                  $tmp_arr = [];
-
-                  foreach ($task_tags as $tag) {
-                     $pos_begin  = strpos($task_str, "<".$tag.">"); 
-                     $pos_end = strpos($task_str, "</".$tag.">");
-                     array_push($tmp_arr, trim(substr($task_str, $pos_begin+strlen("<".$tag.">"), $pos_end-$pos_begin-strlen("</".$tag.">")+1)));
-                  }
-                 //add task as array to array
-                 $task = new Task;
-                 $task->setTitle($tmp_arr[0]);
-                 $task->setHierarcyLevel($tmp_arr[1]);
-                 $task->setStartDatePlan($tmp_arr[2]);
-                 $task->setEndDatePlan($tmp_arr[3]);
-                 $task->setDeadline($tmp_arr[4]);
-                 $task->setTags();
-                 array_push($taskArray, $task);
-
-                  //remove everything from string until first </task> including the </task> !!!
-                  $tmp_str = substr($tmp_str, $pos_task_end+strlen("</Task>"));
-                 
-               } else {
-                  throw new Exception("Invalid Task Cursors! start_cursor: ".$pos_task_begin."   end_cursor: ".$pos_task_end);
-               }
-
-               //eig muss ja in jede while loop und in die if anweisung: wenn contains </tasks> dann breaken, wie setz ich das schön um?
-
-             }
-
-             $file->close();
-             
-         }
-         catch(IO\IoException $e) {
-             echo 'Caught exception: ',  $e->getMessage(), "\n";
-             return false;
-         }
+         return $file;
+     } else {
+      throw new Exception("Could not get File Handle");
      }
-  
-     return $taskArray;
+     /* TO USE:
+         $src = $file->open(Bitrix\Main\IO\FileStreamOpenMode::READ);
+         $return_string = stream_get_contents($src);
+         $file->close();
+     */
+}
+
+/**
+ * reads (buffered) a xml-file and returns an array of Task objects
+ * 
+ * @param mixed $userId
+ * @param mixed $fileName
+ * @param null $folderName
+ * @param int $byteLength
+ * 
+ * @return [type]
+ */
+function _make_tasks_from_xml($userId, $fileName, $folderName = null, $byteLength = 5000) {
+   try{
+      $file = get_bitrix_file_handle($userId, $fileName, $folderName);
+      $src = $file->open(Bitrix\Main\IO\FileStreamOpenMode::READ);
+
+      $tmp_str = "";
+      while(!strpos($tmp_str, "<Tasks>")) {
+         $current_chunk_str = stream_get_contents($src, $byteLength); 
+         //safety measure incase the source file corrupted so that the loop doesn't run for ever
+         if($current_chunk_str == "") {
+            break;
+         }
+         //keep the last chars incase the keyword has started e.g. <tas
+         //the rest is unnessecary
+         $tmp_str = substr($tmp_str, 0, -10);
+         $tmp_str .= $current_chunk_str;
+      }
+      //now we are in the <tasks></tasks> part, the where all the relevant data is.
+      $taskArray = [];
+      while(true) { 
+         while(!($pos_task_begin = strpos($tmp_str, "<Task>")) || !($pos_task_end = strpos($tmp_str, "</Task>"))) {
+            //when we've found </Tasks>, but no <Task>, there must be no tasks left and therefore we break out of both(2) while loops
+            if(strpos($tmp_str, "</Tasks>")) {
+               echo "\nfound </Tasks>"; 
+               break 2;
+            }
+                 
+            $current_chunk_str = stream_get_contents($src, $byteLength); 
+            //safety measure incase the source file corrupted so that the loop doesn't run for ever
+            if($current_chunk_str == "") {
+               break 2;
+            }
+            $tmp_str .= $current_chunk_str;
+
+         }
+         //now we have a task
+         if($pos_task_begin < $pos_task_end) {
+            //fill task object and add to $taskArray
+            $task_str = substr($tmp_str,$pos_task_begin, $pos_task_end-$pos_task_begin+strlen("</Task>"));
+
+            $task_tags = ["Name", "WBS", "Start", "Finish", "LateFinish"];
+            $tmp_arr = [];
+
+            foreach ($task_tags as $tag) {
+               $pos_begin  = strpos($task_str, "<".$tag.">"); 
+               $pos_end = strpos($task_str, "</".$tag.">");
+               array_push($tmp_arr, trim(substr($task_str, $pos_begin+strlen("<".$tag.">"), $pos_end-$pos_begin-strlen("</".$tag.">")+1)));
+            }
+            //add task as array to array
+            $task = new Task;
+            $task->setTitle($tmp_arr[0]);
+            $task->setHierarcyLevel($tmp_arr[1]);
+            $task->setStartDatePlan($tmp_arr[2]);
+            $task->setEndDatePlan($tmp_arr[3]);
+            $task->setDeadline($tmp_arr[4]);
+            $task->setTags();
+            array_push($taskArray, $task);
+
+            //remove everything from string until first </task> including the </task> !!!
+            $tmp_str = substr($tmp_str, $pos_task_end+strlen("</Task>"));
+                 
+         } else {
+            throw new Exception("Invalid Task Cursors! start_cursor: ".$pos_task_begin."   end_cursor: ".$pos_task_end);
+         }
+
+               
+
+      }
+
+      $file->close();
+             
+   } catch(IO\IoException $e) {
+      echo 'Caught exception: ',  $e->getMessage(), "\n";
+      return false;
+   }
+   return $taskArray;
+}
+
+/**
+ * reads a xml-file using the simplexml functionality and returns an array of Task objects
+ * 
+ * @param mixed $userId
+ * @param mixed $fileName
+ * @param null $folderName
+ * 
+ * @return [type]
+ */
+function make_tasks_from_xml($userId, $fileName, $folderName = null) {
+   $taskArray = [];
+   try {
+      $file = get_bitrix_file_handle($userId, $fileName, $folderName);
+      $src = $file->open(Bitrix\Main\IO\FileStreamOpenMode::READ);
+      $xml_string = stream_get_contents($src);
+      $file->close();
+
+      $xml = new SimpleXMLElement($xml_string);       
+      foreach($xml->Tasks->Task as $xmlTask)  {
+         $task = new Task;
+         $task->setTitle((string)$xmlTask->Name);
+         $task->setHierarcyLevel((string)$xmlTask->WBS);
+         $task->setStartDatePlan((string)$xmlTask->Start);
+         $task->setEndDatePlan((string)$xmlTask->Finish);
+         $task->setDeadline((string)$xmlTask->LateFinish);
+         $task->setTags();
+         array_push($taskArray, $task);
+         }
+
+
+             
+             
+   } catch(IO\IoException $e) {
+      echo 'Caught exception: ',  $e->getMessage(), "\n";
+      return false;
+   }
+   return $taskArray;
 }
 
 /**
@@ -262,85 +319,18 @@ function make_tasks_from_xml($userId, $fileName, $folderName = null, $byteLength
  * @return [type]
  */
 function getFileContents($userId, $fileName, $folderName = null) {
-   //we get the "file", that doesn't hold the actual content lol
-   if (\Bitrix\Main\Loader::includeModule('disk')) {  
-       $storage = \Bitrix\Disk\Driver::getInstance()->getStorageByUserId($userId);
-       if($folderName == null) {
-           $folder = $storage->getRootObject();
-       } else {
-           $folder = $storage->getChild(array('=NAME' => $folderName,  
-           'TYPE' => \Bitrix\Disk\Internals\FolderTable::TYPE_FOLDER));
-       }
-      $file = $folder->getChild(array('=NAME' => $fileName, 
-        'TYPE' => \Bitrix\Disk\Internals\FileTable::TYPE_FILE)); 
-
-   }
-   else {
-       throw new Exception('Could not load \'disk\' module.');
-   } 
-   $arFile = $file->getFileId(); 
-    
-   $content_type = "";
-   $filenameInternal = '';
-
-
-   if ($arFile = CFile::GetFileArray($arFile)) {
-       $filenameInternal = $arFile['SRC'];
-   }
-   else {
-     throw new Exception('Filename was empty.');
-   }
-
-   if(isset($arFile["CONTENT_TYPE"])) {
-       $content_type = $arFile["CONTENT_TYPE"];
-   }
-   //we produce resized jpg for original bmp
-   if($content_type == '' || $content_type == "image/bmp") {
-       if(isset($arFile["tmp_name"])) {
-           $content_type = CFile::GetContentType($arFile["tmp_name"], true);
-       }
-       else {
-           $content_type = CFile::GetContentType($_SERVER["DOCUMENT_ROOT"].$filenameInternal);
-       }
-   }
-
-   if($arFile["ORIGINAL_NAME"] <> '')
-       $name = $arFile["ORIGINAL_NAME"];
-   elseif($arFile["name"] <> '')
-       $name = $arFile["name"];
-   else
-       $name = $arFile["FILE_NAME"];
-   if(isset($arFile["EXTENSION_SUFFIX"]) && $arFile["EXTENSION_SUFFIX"] <> '')
-       $name = mb_substr($name, 0, -mb_strlen($arFile["EXTENSION_SUFFIX"]));
-
-   $name = str_replace(array("\n", "\r"), '', $name);
-
-
-
-   $content_type = CFile::NormalizeContentType($content_type);
-   $src = null;
-   $file = null;
-
-   if (mb_substr($filenameInternal, 0, 1) == '/') {
-       $file = new Bitrix\Main\IO\File($_SERVER['DOCUMENT_ROOT']. $filenameInternal);
-   }
-   elseif (isset($arFile['tmp_name'])) {
-       $file = new Bitrix\Main\IO\File($arFile['tmp_name']);
-   }
-   $return_string = '';
-   //now we get the actual file contents using a stream
-   if ((mb_substr($filenameInternal, 0, 1) == '/') && ($file instanceof Bitrix\Main\IO\File)) {
-       try {
-           $src = $file->open(Bitrix\Main\IO\FileStreamOpenMode::READ);
-           $return_string = stream_get_contents($src);
-           $file->close();
+   try {
+      $file = get_bitrix_file_handle($userId, $fileName, $folderName);
+      $src = $file->open(Bitrix\Main\IO\FileStreamOpenMode::READ);
+      $return_string = stream_get_contents($src);
+      $file->close();
            
-       }
-       catch(IO\IoException $e) {
-           echo 'Caught exception: ',  $e->getMessage(), "\n";
-           return false;
-       }
-   }
+      }
+      catch(IO\IoException $e) {
+         echo 'Caught exception: ',  $e->getMessage(), "\n";
+         return false;
+      }
+
 
    return $return_string;
 }
@@ -421,8 +411,11 @@ class Task {
    private $group_id;
    private $hierarcy_level;
    private $bitrix_id;
-   private $tags;
+   private array $tags;
 
+   public function __construct() {
+      $this->tags = [];
+   }
    /**
     * returns a date without litarals, if e.g. Mon 22.02.10
     *
@@ -470,7 +463,7 @@ class Task {
    }
   }
 
-  /**
+   /**
    * returns the bitrix id of a task's parent
    * 
    * @param mixed $taskArray
@@ -487,6 +480,26 @@ class Task {
       $parent_hierarcy = substr($this->hierarcy_level,0, $dotPos);
       $parentTask = Task::get_task_by_hierarcy($taskArray, $parent_hierarcy);
       return $parentTask->getBitrixId();
+   }
+  }
+
+     /**
+   * returns the bitrix id of a task's parent
+   * 
+   * @param mixed $taskArray
+   * 
+   * @return [type]
+   */
+  public function getParentName($taskArray) {
+   if(strlen($this->hierarcy_level) < 2) {
+      return null;
+   }
+   else {
+      //get last . position
+      $dotPos = strrpos($this->hierarcy_level, ".");
+      $parent_hierarcy = substr($this->hierarcy_level,0, $dotPos);
+      $parentTask = Task::get_task_by_hierarcy($taskArray, $parent_hierarcy);
+      return $parentTask->getTitle();
    }
   }
 
@@ -680,7 +693,6 @@ class Task {
     */
    public function setTags(): self
    {
-      $this->tags = [];
       $val = $this->hierarcy_level;
       //only one number / Root
       if (preg_match("/^\d*$/", $val)) {
@@ -698,6 +710,13 @@ class Task {
          throw new Exception('Invalid psp_Code: '.$val.'Something with the formatting went wrong!');
       }
      return $this;
+   }
+
+   public function addTags(...$tags): self {
+      foreach($tags as $tag) {
+         array_push($this->tags, $tag);
+      }
+      return $this;
    }
 
    /**
@@ -750,15 +769,46 @@ class Task {
 function add_tasks_from_file($responsible_id, $creator_id, $group_id, $userId, $fileName, $folderName = null) {
    $taskArray;
    if(preg_match("/^\w+.csv$/", $fileName)) {
+      $IMPLEMENTAITON_USED = "Custom - csv";
       $filetext = getFileContents($userId, $fileName, $folderName);
       $taskArray = make_tasks_from_csv($filetext);
    }
    elseif(preg_match("/^\w+.xml$/", $fileName)) {
-      $taskArray = make_tasks_from_xml($userId, $fileName, $folderName);
+      if(function_exists("simplexml_load_file")){
+         $IMPLEMENTAITON_USED = "simplexml - xml";
+         $taskArray = make_tasks_from_xml($userId, $fileName, $folderName);
+      } else { //custom xml parsing, if necessary lib for simple-xml is not included
+         $IMPLEMENTAITON_USED = "Custom - xml";
+         $taskArray = _make_tasks_from_xml($userId, $fileName, $folderName);
+      }
+      
    } else {
       throw new Exception("Unsupported file type given!");
    }
    
+
+  //Check if hierarchy of tasks is <= 2
+  $is2d = true; 
+  foreach($taskArray as $task) {
+      if(!preg_match("/^(\d+)(.(\d*)){0,2}$/", $task->getHierarcyLevel())) {
+         $is2d = false;
+         break;
+      }    
+   }
+   //add tag für l1: Aufgabenbereich
+   //add tag für l1 & (l2 falls vorg. von l1): Name des l1 als Tag
+   echo $is2d ? 'Hierarchy is 2d: true' : 'Hierarchy is 2d: false';
+   if($is2d) {
+      foreach($taskArray as $task) {
+         if(preg_match("/^(\d+)(.(\d*)){1}$/",$task->getHierarcyLevel())) {
+            $task->addTags("Aufgabenbereich", $task->getTitle());
+         } elseif(preg_match("/^(\d+)(.(\d*)){2}$/",$task->getHierarcyLevel())) {
+            $task->addTags($task->getParentName($taskArray));
+         }
+      }
+   }
+
+
    //create tasks in bitrix
    foreach($taskArray as $task) {
       $task->setBitrixId(add_task($task->getArFields(), $responsible_id, 
@@ -821,7 +871,7 @@ function run_in_workflow($root, $userId) {
 function run_in_console() { 
    $var_responsible_id = 660;
    $var_creator_id = 660;
-   $var_group_id = 34;
+   $var_group_id = 38;
    $userId = 660;
    $var_file_name = "mensy.xml";
    add_tasks_from_file($var_responsible_id, $var_creator_id, $var_group_id,
@@ -833,4 +883,6 @@ global $USER;
 $userId = $USER->GetID();
 run_in_workflow($rootActivity, $userId);
 
+
+echo "\n-----Implementation used: ".$IMPLEMENTAITON_USED." Max RAM usage: ".memory_get_peak_usage(true)*(10**-6)."MB-----\n";
 ?>
