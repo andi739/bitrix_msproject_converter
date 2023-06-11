@@ -254,6 +254,116 @@ function _make_tasks_from_xml($userId, $fileName, $folderName = null, $byteLengt
 }
 
 /**
+ * reads a xml-file using the simplexml functionality and returns an array of Task objects
+ * 
+ * @param mixed $userId
+ * @param mixed $fileName
+ * @param null $folderName
+ * 
+ * @return [type]
+ */
+function make_tasks_from_xml($userId, $fileName, $folderName = null) {
+      //we get the "file", that doesn't hold the actual content lol
+      if (\Bitrix\Main\Loader::includeModule('disk')) {  
+         $storage = \Bitrix\Disk\Driver::getInstance()->getStorageByUserId($userId);
+         if($folderName == null) {
+             $folder = $storage->getRootObject();
+         } else {
+             $folder = $storage->getChild(array('=NAME' => $folderName,  
+             'TYPE' => \Bitrix\Disk\Internals\FolderTable::TYPE_FOLDER));
+         }
+        $file = $folder->getChild(array('=NAME' => $fileName, 
+          'TYPE' => \Bitrix\Disk\Internals\FileTable::TYPE_FILE)); 
+  
+     }
+     else {
+         throw new Exception('Could not load \'disk\' module.');
+     } 
+     $arFile = $file->getFileId(); 
+      
+     $content_type = "";
+     $filenameInternal = '';
+  
+  
+     if ($arFile = CFile::GetFileArray($arFile)) {
+         $filenameInternal = $arFile['SRC'];
+     }
+     else {
+       throw new Exception('Filename was empty.');
+     }
+  
+     if(isset($arFile["CONTENT_TYPE"])) {
+         $content_type = $arFile["CONTENT_TYPE"];
+     }
+     //we produce resized jpg for original bmp
+     if($content_type == '' || $content_type == "image/bmp") {
+         if(isset($arFile["tmp_name"])) {
+             $content_type = CFile::GetContentType($arFile["tmp_name"], true);
+         }
+         else {
+             $content_type = CFile::GetContentType($_SERVER["DOCUMENT_ROOT"].$filenameInternal);
+         }
+     }
+  
+     if($arFile["ORIGINAL_NAME"] <> '')
+         $name = $arFile["ORIGINAL_NAME"];
+     elseif($arFile["name"] <> '')
+         $name = $arFile["name"];
+     else
+         $name = $arFile["FILE_NAME"];
+     if(isset($arFile["EXTENSION_SUFFIX"]) && $arFile["EXTENSION_SUFFIX"] <> '')
+         $name = mb_substr($name, 0, -mb_strlen($arFile["EXTENSION_SUFFIX"]));
+  
+     $name = str_replace(array("\n", "\r"), '', $name);
+  
+  
+  
+     $content_type = CFile::NormalizeContentType($content_type);
+     $src = null;
+     $file = null;
+  
+     if (mb_substr($filenameInternal, 0, 1) == '/') {
+         $file = new Bitrix\Main\IO\File($_SERVER['DOCUMENT_ROOT']. $filenameInternal);
+     }
+     elseif (isset($arFile['tmp_name'])) {
+         $file = new Bitrix\Main\IO\File($arFile['tmp_name']);
+     }
+     //now we get the actual file contents using a stream
+     $taskArray = [];
+     if ((mb_substr($filenameInternal, 0, 1) == '/') && ($file instanceof Bitrix\Main\IO\File)) {
+         try {
+             $src = $file->open(Bitrix\Main\IO\FileStreamOpenMode::READ);
+             $xml_string = stream_get_contents($src);
+             $file->close();
+
+             $xml = new SimpleXMLElement($xml_string);
+             
+             foreach($xml->Tasks->Task as $xmlTask)  {
+                 $task = new Task;
+                 $task->setTitle((string)$xmlTask->Name);
+                 $task->setHierarcyLevel((string)$xmlTask->WBS);
+                 $task->setStartDatePlan((string)$xmlTask->Start);
+                 $task->setEndDatePlan((string)$xmlTask->Finish);
+                 $task->setDeadline((string)$xmlTask->LateFinish);
+                 $task->setTags();
+                 array_push($taskArray, $task);
+     
+             }
+
+
+             
+             
+         }
+         catch(IO\IoException $e) {
+             echo 'Caught exception: ',  $e->getMessage(), "\n";
+             return false;
+         }
+     }
+  
+     return $taskArray;
+}
+
+/**
  *reads a text file in someone's drive and returns their content as a string 
  * 
  * @param mixed $userId
@@ -758,7 +868,7 @@ function add_tasks_from_file($responsible_id, $creator_id, $group_id, $userId, $
    elseif(preg_match("/^\w+.xml$/", $fileName)) {
       if(function_exists("simplexml_load_file")){
          $IMPLEMENTAITON_USED = "simplexml - xml";
-         //TODO simplexml impl.
+         $taskArray = make_tasks_from_xml($userId, $fileName, $folderName);
       } else { //custom xml parsing, if necessary lib for simple-xml is not included
          $IMPLEMENTAITON_USED = "Custom - xml";
          $taskArray = _make_tasks_from_xml($userId, $fileName, $folderName);
@@ -830,7 +940,7 @@ function run_in_workflow($root, $userId) {
 function run_in_console() { 
    $var_responsible_id = 660;
    $var_creator_id = 660;
-   $var_group_id = 34;
+   $var_group_id = 38;
    $userId = 660;
    $var_file_name = "mensy.xml";
    add_tasks_from_file($var_responsible_id, $var_creator_id, $var_group_id,
