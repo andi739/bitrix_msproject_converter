@@ -170,8 +170,6 @@ function get_bitrix_file_handle($userId, $fileName, $folderName = null) {
      elseif (isset($arFile['tmp_name'])) {
          $file = new Bitrix\Main\IO\File($arFile['tmp_name']);
      }
-     $return_string = '';
-
      if ((mb_substr($filenameInternal, 0, 1) == '/') && ($file instanceof Bitrix\Main\IO\File)) {
          return $file;
      } else {
@@ -413,8 +411,11 @@ class Task {
    private $group_id;
    private $hierarcy_level;
    private $bitrix_id;
-   private $tags;
+   private array $tags;
 
+   public function __construct() {
+      $this->tags = [];
+   }
    /**
     * returns a date without litarals, if e.g. Mon 22.02.10
     *
@@ -462,7 +463,7 @@ class Task {
    }
   }
 
-  /**
+   /**
    * returns the bitrix id of a task's parent
    * 
    * @param mixed $taskArray
@@ -479,6 +480,26 @@ class Task {
       $parent_hierarcy = substr($this->hierarcy_level,0, $dotPos);
       $parentTask = Task::get_task_by_hierarcy($taskArray, $parent_hierarcy);
       return $parentTask->getBitrixId();
+   }
+  }
+
+     /**
+   * returns the bitrix id of a task's parent
+   * 
+   * @param mixed $taskArray
+   * 
+   * @return [type]
+   */
+  public function getParentName($taskArray) {
+   if(strlen($this->hierarcy_level) < 2) {
+      return null;
+   }
+   else {
+      //get last . position
+      $dotPos = strrpos($this->hierarcy_level, ".");
+      $parent_hierarcy = substr($this->hierarcy_level,0, $dotPos);
+      $parentTask = Task::get_task_by_hierarcy($taskArray, $parent_hierarcy);
+      return $parentTask->getTitle();
    }
   }
 
@@ -672,7 +693,6 @@ class Task {
     */
    public function setTags(): self
    {
-      $this->tags = [];
       $val = $this->hierarcy_level;
       //only one number / Root
       if (preg_match("/^\d*$/", $val)) {
@@ -690,6 +710,13 @@ class Task {
          throw new Exception('Invalid psp_Code: '.$val.'Something with the formatting went wrong!');
       }
      return $this;
+   }
+
+   public function addTags(...$tags): self {
+      foreach($tags as $tag) {
+         array_push($this->tags, $tag);
+      }
+      return $this;
    }
 
    /**
@@ -759,6 +786,29 @@ function add_tasks_from_file($responsible_id, $creator_id, $group_id, $userId, $
       throw new Exception("Unsupported file type given!");
    }
    
+
+  //Check if hierarchy of tasks is <= 2
+  $is2d = true; 
+  foreach($taskArray as $task) {
+      if(!preg_match("/^(\d+)(.(\d*)){0,2}$/", $task->getHierarcyLevel())) {
+         $is2d = false;
+         break;
+      }    
+   }
+   //add tag für l1: Aufgabenbereich
+   //add tag für l1 & (l2 falls vorg. von l1): Name des l1 als Tag
+   echo $is2d ? 'Hierarchy is 2d: true' : 'Hierarchy is 2d: false';
+   if($is2d) {
+      foreach($taskArray as $task) {
+         if(preg_match("/^(\d+)(.(\d*)){1}$/",$task->getHierarcyLevel())) {
+            $task->addTags("Aufgabenbereich", $task->getTitle());
+         } elseif(preg_match("/^(\d+)(.(\d*)){2}$/",$task->getHierarcyLevel())) {
+            $task->addTags($task->getParentName($taskArray));
+         }
+      }
+   }
+
+
    //create tasks in bitrix
    foreach($taskArray as $task) {
       $task->setBitrixId(add_task($task->getArFields(), $responsible_id, 
