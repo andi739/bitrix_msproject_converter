@@ -1,5 +1,6 @@
 <?php
 
+$IMPLEMENTAITON_USED;
 
 /**
  * takes a csv file and returns an associative array with column names as keys
@@ -104,7 +105,7 @@ function make_tasks_from_csv($filetext, $delimiter = '#', $drop_unnecessary = tr
  * 
  * @return [type]
  */
-function make_tasks_from_xml($userId, $fileName, $folderName = null, $byteLength = 5000) {
+function _make_tasks_from_xml($userId, $fileName, $folderName = null, $byteLength = 5000) {
 
       //we get the "file", that doesn't hold the actual content lol
       if (\Bitrix\Main\Loader::includeModule('disk')) {  
@@ -750,11 +751,19 @@ class Task {
 function add_tasks_from_file($responsible_id, $creator_id, $group_id, $userId, $fileName, $folderName = null) {
    $taskArray;
    if(preg_match("/^\w+.csv$/", $fileName)) {
+      $IMPLEMENTAITON_USED = "Custom - csv";
       $filetext = getFileContents($userId, $fileName, $folderName);
       $taskArray = make_tasks_from_csv($filetext);
    }
    elseif(preg_match("/^\w+.xml$/", $fileName)) {
-      $taskArray = make_tasks_from_xml($userId, $fileName, $folderName);
+      if(function_exists("simplexml_load_file")){
+         $IMPLEMENTAITON_USED = "simplexml - xml";
+         //TODO simplexml impl.
+      } else { //custom xml parsing, if necessary lib for simple-xml is not included
+         $IMPLEMENTAITON_USED = "Custom - xml";
+         $taskArray = _make_tasks_from_xml($userId, $fileName, $folderName);
+      }
+      
    } else {
       throw new Exception("Unsupported file type given!");
    }
@@ -833,4 +842,6 @@ global $USER;
 $userId = $USER->GetID();
 run_in_workflow($rootActivity, $userId);
 
+
+echo "\n-----Implementation used: ".$IMPLEMENTAITON_USED." Max RAM usage: ".memory_get_peak_usage(true)*(10**-6)."MB-----\n";
 ?>
