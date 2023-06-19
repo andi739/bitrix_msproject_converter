@@ -772,12 +772,12 @@ class Task {
  */
 function add_tasks_from_file($responsible_id, $creator_id, $group_id, $userId, $fileName, $folderName = null) {
    $taskArray;
-   if(preg_match("/^\w+.csv$/", $fileName)) {
+   if(preg_match("/^.*\.csv$/", $fileName)) {
       $IMPLEMENTAITON_USED = "Custom - csv";
       $filetext = getFileContents($userId, $fileName, $folderName);
       $taskArray = make_tasks_from_csv($filetext);
    }
-   elseif(preg_match("/^\w+.xml$/", $fileName)) {
+   elseif(preg_match("/^.*\.xml$/", $fileName)) {
       if(function_exists("simplexml_load_file")){
          $IMPLEMENTAITON_USED = "simplexml - xml";
          $taskArray = make_tasks_from_xml($userId, $fileName, $folderName);
