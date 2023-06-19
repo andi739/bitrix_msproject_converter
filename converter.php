@@ -2,6 +2,8 @@
 
 $IMPLEMENTAITON_USED;
 
+const DO_HIERARCHY_TAGS = false;
+
 /**
  * takes a csv file and returns an associative array with column names as keys
  * 
@@ -88,7 +90,7 @@ function make_tasks_from_csv($filetext, $delimiter = '#', $drop_unnecessary = tr
       $task->setEndDatePlan($transformed_content['Endtermin'][$i]);
       $task->setDeadline($transformed_content['Spätestes_Ende'][$i]);
       $task->setHierarcyLevel($transformed_content['PSP_Code'][$i]);
-      $task->setTags();
+      $task->setHierarchyTags();
       array_push($taskArray, $task);
    }
 
@@ -247,7 +249,7 @@ function _make_tasks_from_xml($userId, $fileName, $folderName = null, $byteLengt
             $task->setStartDatePlan($tmp_arr[2]);
             $task->setEndDatePlan($tmp_arr[3]);
             $task->setDeadline($tmp_arr[4]);
-            $task->setTags();
+            $task->setHierarchyTags();
             array_push($taskArray, $task);
 
             //remove everything from string until first </task> including the </task> !!!
@@ -295,7 +297,7 @@ function make_tasks_from_xml($userId, $fileName, $folderName = null) {
          $task->setStartDatePlan((string)$xmlTask->Start);
          $task->setEndDatePlan((string)$xmlTask->Finish);
          $task->setDeadline((string)$xmlTask->LateFinish);
-         $task->setTags();
+         $task->setHierarchyTags();
          array_push($taskArray, $task);
          }
 
@@ -691,23 +693,25 @@ class Task {
     *
     * @return self
     */
-   public function setTags(): self
+   public function setHierarchyTags(): self
    {
-      $val = $this->hierarcy_level;
-      //only one number / Root
-      if (preg_match("/^\d*$/", $val)) {
-         //_ is used instead of the dot because . is ignored by the system
-         array_push($this->tags, $val."_");
-
-      }
-      //one number and >1 .d 's / every node below root
-      elseif (preg_match("/^\d*(\.(\d)+)+$/", $val)) {
-         //because the bitrix search only matches the search query (contains(string)), there is only one tag needed as the system return all tagged items within the searched hierarchy and below
-         $replaced = str_replace(".", "_", $val);
-         array_push($this->tags, $replaced."_");
-      }
-      else {
-         throw new Exception('Invalid psp_Code: '.$val.'Something with the formatting went wrong!');
+      if(DO_HIERARCHY_TAGS) {
+         $val = $this->hierarcy_level;
+         //only one number / Root
+         if (preg_match("/^\d*$/", $val)) {
+            //_ is used instead of the dot because . is ignored by the system
+            array_push($this->tags, $val."_");
+   
+         }
+         //one number and >1 .d 's / every node below root
+         elseif (preg_match("/^\d*(\.(\d)+)+$/", $val)) {
+            //because the bitrix search only matches the search query (contains(string)), there is only one tag needed as the system return all tagged items within the searched hierarchy and below
+            $replaced = str_replace(".", "_", $val);
+            array_push($this->tags, $replaced."_");
+         }
+         else {
+            throw new Exception('Invalid psp_Code: '.$val.'Something with the formatting went wrong!');
+         }
       }
      return $this;
    }
