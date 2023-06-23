@@ -872,11 +872,10 @@ function run_in_workflow($root, $userId) {
  * 
  * @return [type]
  */
-function run_in_console() { 
+function run_in_console($userId) { 
    $var_responsible_id = 660;
    $var_creator_id = 660;
    $var_group_id = 38;
-   $userId = 660;
    $var_file_name = "mensy.xml";
    add_tasks_from_file($var_responsible_id, $var_creator_id, $var_group_id,
                         $userId, $var_file_name, "Hochgeladene Dateien");   
@@ -886,7 +885,7 @@ $rootActivity = $this->GetRootActivity();
 global $USER;
 $userId = $USER->GetID();
 run_in_workflow($rootActivity, $userId);
-
+//run_in_console($userId);
 
 echo "\n-----Implementation used: ".$IMPLEMENTAITON_USED." Max RAM usage: ".memory_get_peak_usage(true)*(10**-6)."MB-----\n";
 ?>
