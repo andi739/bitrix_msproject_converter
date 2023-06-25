@@ -848,7 +848,8 @@ function run_in_workflow($root, $userId) {
    //parse because in bitrix you only get a link
    //[url=/bitrix/tools/bizproc_show_file.
    //php?f=paragraph.csv&i=4525&h=6b0837619af9f9d235659e7f98af333f]paragraph.csv[/url] 
-   $var_file_name = $var_file_name[0];
+   if(gettype($var_file_name)=="array")
+      $var_file_name = $var_file_name[0];
    $pos1 = strpos($var_file_name, "]") +1;
    $pos2 = strpos($var_file_name, "[/url]");
    $parsed_file_name = substr($var_file_name, $pos1, $pos2-$pos1);
