@@ -1,6 +1,6 @@
 <?php
 
-$IMPLEMENTAITON_USED;
+$IMPLEMENTATION_USED;
 
 const DO_HIERARCHY_TAGS = false;
 
@@ -89,7 +89,7 @@ function make_tasks_from_csv($filetext, $delimiter = '#', $drop_unnecessary = tr
       $task->setStartDatePlan($transformed_content['Anfangstermin'][$i]);
       $task->setEndDatePlan($transformed_content['Endtermin'][$i]);
       $task->setDeadline($transformed_content['Spätestes_Ende'][$i]);
-      $task->setHierarcyLevel($transformed_content['PSP_Code'][$i]);
+      $task->setHierarchyLevel($transformed_content['PSP_Code'][$i]);
       $task->setHierarchyTags();
       array_push($taskArray, $task);
    }
@@ -245,7 +245,7 @@ function _make_tasks_from_xml($userId, $fileName, $folderName = null, $byteLengt
             //add task as array to array
             $task = new Task;
             $task->setTitle($tmp_arr[0]);
-            $task->setHierarcyLevel($tmp_arr[1]);
+            $task->setHierarchyLevel($tmp_arr[1]);
             $task->setStartDatePlan($tmp_arr[2]);
             $task->setEndDatePlan($tmp_arr[3]);
             $task->setDeadline($tmp_arr[4]);
@@ -293,7 +293,7 @@ function make_tasks_from_xml($userId, $fileName, $folderName = null) {
       foreach($xml->Tasks->Task as $xmlTask)  {
          $task = new Task;
          $task->setTitle((string)$xmlTask->Name);
-         $task->setHierarcyLevel((string)$xmlTask->WBS);
+         $task->setHierarchyLevel((string)$xmlTask->WBS);
          $task->setStartDatePlan((string)$xmlTask->Start);
          $task->setEndDatePlan((string)$xmlTask->Finish);
          $task->setDeadline((string)$xmlTask->LateFinish);
@@ -411,7 +411,7 @@ class Task {
    private $responsible_id;
    private $creator_id;
    private $group_id;
-   private $hierarcy_level;
+   private $hierarchy_level;
    private $bitrix_id;
    private array $tags;
 
@@ -444,17 +444,17 @@ class Task {
   }
 
   /**
-   * returns a Task out of an array that matches the hierarcy level
+   * returns a Task out of an array that matches the hierarchy level
    * 
    * @param Task[] $task_array
-   * @param mixed $hierarcy_level
+   * @param mixed $hierarchy_level
    * 
    * @return [type]
    */
-  public static function get_task_by_hierarcy($task_array, $hierarcy_level) {
+  public static function get_task_by_hierarchy($task_array, $hierarchy_level) {
    foreach($task_array as $task) {
       if($task instanceof Task) {
-         if($task->getHierarcyLevel() == $hierarcy_level) {
+         if($task->getHierarchyLevel() == $hierarchy_level) {
             echo "found parent";
             return $task;
          }
@@ -473,14 +473,14 @@ class Task {
    * @return [type]
    */
   public function getParentId($taskArray) {
-   if(strlen($this->hierarcy_level) < 2) {
+   if(strlen($this->hierarchy_level) < 2) {
       return null;
    }
    else {
       //get last . position
-      $dotPos = strrpos($this->hierarcy_level, ".");
-      $parent_hierarcy = substr($this->hierarcy_level,0, $dotPos);
-      $parentTask = Task::get_task_by_hierarcy($taskArray, $parent_hierarcy);
+      $dotPos = strrpos($this->hierarchy_level, ".");
+      $parent_hierarchy = substr($this->hierarchy_level,0, $dotPos);
+      $parentTask = Task::get_task_by_hierarchy($taskArray, $parent_hierarchy);
       return $parentTask->getBitrixId();
    }
   }
@@ -493,14 +493,14 @@ class Task {
    * @return [type]
    */
   public function getParentName($taskArray) {
-   if(strlen($this->hierarcy_level) < 2) {
+   if(strlen($this->hierarchy_level) < 2) {
       return null;
    }
    else {
       //get last . position
-      $dotPos = strrpos($this->hierarcy_level, ".");
-      $parent_hierarcy = substr($this->hierarcy_level,0, $dotPos);
-      $parentTask = Task::get_task_by_hierarcy($taskArray, $parent_hierarcy);
+      $dotPos = strrpos($this->hierarchy_level, ".");
+      $parent_hierarchy = substr($this->hierarchy_level,0, $dotPos);
+      $parentTask = Task::get_task_by_hierarchy($taskArray, $parent_hierarchy);
       return $parentTask->getTitle();
    }
   }
@@ -652,19 +652,19 @@ class Task {
    }
 
    /**
-    * Get the value of hierarcy_level
+    * Get the value of hierarchy_level
     */
-   public function getHierarcyLevel()
+   public function getHierarchyLevel()
    {
-      return $this->hierarcy_level;
+      return $this->hierarchy_level;
    }
 
    /**
-    * Set the value of hierarcy_level
+    * Set the value of hierarchy_level
     */
-   public function setHierarcyLevel($hierarcy_level): self
+   public function setHierarchyLevel($hierarchy_level): self
    {
-      $this->hierarcy_level = $hierarcy_level;
+      $this->hierarchy_level = $hierarchy_level;
 
       return $this;
    }
@@ -688,15 +688,15 @@ class Task {
    }
 
    /**
-    * returns a tag for the hierarcy of the task
-    * the root has one tag, all others have 2. the own hierarcy and the parent's
+    * returns a tag for the hierarchy of the task
+    * the root has one tag, all others have 2. the own hierarchy and the parent's
     *
     * @return self
     */
    public function setHierarchyTags(): self
    {
       if(DO_HIERARCHY_TAGS) {
-         $val = $this->hierarcy_level;
+         $val = $this->hierarchy_level;
          //only one number / Root
          if (preg_match("/^\d*$/", $val)) {
             //_ is used instead of the dot because . is ignored by the system
@@ -762,7 +762,6 @@ class Task {
  * combined function, to get file content, transform it and finally create the tasks in bitrix
  * 
  * @param mixed $responsible_id
- * @param mixed $creator_id
  * @param mixed $group_id
  * @param mixed $userId
  * @param mixed $fileName
@@ -770,19 +769,19 @@ class Task {
  * 
  * @return [type]
  */
-function add_tasks_from_file($responsible_id, $creator_id, $group_id, $userId, $fileName, $folderName = null) {
+function add_tasks_from_file($userId, $responsible_id, $group_id, $fileName, $folderName = null) {
    $taskArray;
    if(preg_match("/^.*\.csv$/", $fileName)) {
-      $IMPLEMENTAITON_USED = "Custom - csv";
+      $IMPLEMENTATION_USED = "Custom - csv";
       $filetext = getFileContents($userId, $fileName, $folderName);
       $taskArray = make_tasks_from_csv($filetext);
    }
    elseif(preg_match("/^.*\.xml$/", $fileName)) {
       if(function_exists("simplexml_load_file")){
-         $IMPLEMENTAITON_USED = "simplexml - xml";
+         $IMPLEMENTATION_USED = "simplexml - xml";
          $taskArray = make_tasks_from_xml($userId, $fileName, $folderName);
       } else { //custom xml parsing, if necessary lib for simple-xml is not included
-         $IMPLEMENTAITON_USED = "Custom - xml";
+         $IMPLEMENTATION_USED = "Custom - xml";
          $taskArray = _make_tasks_from_xml($userId, $fileName, $folderName);
       }
       
@@ -794,7 +793,7 @@ function add_tasks_from_file($responsible_id, $creator_id, $group_id, $userId, $
   //Check if hierarchy of tasks is <= 2
   $is2d = true; 
   foreach($taskArray as $task) {
-      if(!preg_match("/^(\d+)(.(\d*)){0,2}$/", $task->getHierarcyLevel())) {
+      if(!preg_match("/^(\d+)(.(\d*)){0,2}$/", $task->getHierarchyLevel())) {
          $is2d = false;
          break;
       }    
@@ -804,9 +803,9 @@ function add_tasks_from_file($responsible_id, $creator_id, $group_id, $userId, $
    echo $is2d ? 'Hierarchy is 2d: true' : 'Hierarchy is 2d: false';
    if($is2d) {
       foreach($taskArray as $task) {
-         if(preg_match("/^(\d+)(.(\d*)){1}$/",$task->getHierarcyLevel())) {
+         if(preg_match("/^(\d+)(.(\d*)){1}$/",$task->getHierarchyLevel())) {
             $task->addTags("Aufgabenbereich", $task->getTitle());
-         } elseif(preg_match("/^(\d+)(.(\d*)){2}$/",$task->getHierarcyLevel())) {
+         } elseif(preg_match("/^(\d+)(.(\d*)){2}$/",$task->getHierarchyLevel())) {
             $task->addTags($task->getParentName($taskArray));
          }
       }
@@ -816,7 +815,7 @@ function add_tasks_from_file($responsible_id, $creator_id, $group_id, $userId, $
    //create tasks in bitrix
    foreach($taskArray as $task) {
       $task->setBitrixId(add_task($task->getArFields(), $responsible_id, 
-      $creator_id, $group_id));
+      $userId, $group_id));
    }
 
 
@@ -844,14 +843,7 @@ function add_tasks_from_file($responsible_id, $creator_id, $group_id, $userId, $
 function run_in_workflow($root, $userId) {
    
    $var_group_id = $root->GetVariable('group_id');
-   $var_responsible_id = $root->GetVariable('responsible_id');
-   if($var_responsible_id == null) {
-      $var_responsible_id = 669;
-   }   
-   $var_creator_id = $root->GetVariable('creator_id');
-   if($var_creator_id == null) {
-    $var_creator_id = 669;
-   }
+   $var_responsible_id = $root->GetVariable('responsible_id'); 
    $var_file_name = $root->GetVariable('file_name');
    //parse because in bitrix you only get a link
    //[url=/bitrix/tools/bizproc_show_file.
@@ -861,8 +853,7 @@ function run_in_workflow($root, $userId) {
    $pos2 = strpos($var_file_name, "[/url]");
    $parsed_file_name = substr($var_file_name, $pos1, $pos2-$pos1);
 
-   add_tasks_from_file($var_responsible_id, $var_creator_id, $var_group_id,
-                        $userId, $parsed_file_name, "Hochgeladene Dateien");   
+   add_tasks_from_file($userId, $var_responsible_id, $var_group_id, $parsed_file_name, "Hochgeladene Dateien");   
 }
 
 
@@ -872,20 +863,37 @@ function run_in_workflow($root, $userId) {
  * 
  * @return [type]
  */
-function run_in_console($userId) { 
-   $var_responsible_id = 660;
-   $var_creator_id = 660;
-   $var_group_id = 38;
-   $var_file_name = "mensy.xml";
-   add_tasks_from_file($var_responsible_id, $var_creator_id, $var_group_id,
-                        $userId, $var_file_name, "Hochgeladene Dateien");   
+function run_in_console($userId, $var_responsible_id, $var_group_id, $var_file_name) { 
+   add_tasks_from_file($userId, $var_responsible_id, $var_group_id, $var_file_name, "Hochgeladene Dateien");   
 }
 
-$rootActivity = $this->GetRootActivity();
-global $USER;
-$userId = $USER->GetID();
-run_in_workflow($rootActivity, $userId);
-//run_in_console($userId);
 
-echo "\n-----Implementation used: ".$IMPLEMENTAITON_USED." Max RAM usage: ".memory_get_peak_usage(true)*(10**-6)."MB-----\n";
+
+/**
+ * returns the Id of the user currently logged in
+ * global $USER does no longer work in bitrix, may be fixed? therefore the alternative route throu session context
+ * 
+ * @return [type]
+ */
+function getUserId() {
+   global $USER;
+   $userId = $USER->GetID();
+   if($userId == null) {
+      $dec = json_decode($_SESSION["SESS_AUTH"]["CONTEXT"]);
+      $userId = $dec->userId;
+   }
+   return $userId;
+}
+
+
+
+$userId = getUserId();
+
+//run_in_console($userId, $userId, $var_group_id, $var_file_name);
+
+$rootActivity = $this->GetRootActivity();
+run_in_workflow($rootActivity, $userId);
+
+echo "\n-----Implementation used: ".$IMPLEMENTATION_USED." Max RAM usage: ".memory_get_peak_usage(true)*(10**-6)."MB-----\n";
+
 ?>
