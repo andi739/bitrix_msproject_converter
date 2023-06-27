@@ -88,7 +88,8 @@ function make_tasks_from_csv($filetext, $delimiter = '#', $drop_unnecessary = tr
       $task->setTitle($transformed_content['Vorgangsname'][$i]);
       $task->setStartDatePlan($transformed_content['Anfangstermin'][$i]);
       $task->setEndDatePlan($transformed_content['Endtermin'][$i]);
-      $task->setDeadline($transformed_content['Spätestes_Ende'][$i]);
+      //$task->setDeadline($transformed_content['Spätestes_Ende'][$i]);
+      $task->setDeadline($transformed_content['Endtermin'][$i]);
       $task->setHierarchyLevel($transformed_content['PSP_Code'][$i]);
       $task->setHierarchyTags();
       array_push($taskArray, $task);
@@ -248,7 +249,8 @@ function _make_tasks_from_xml($userId, $fileName, $folderName = null, $byteLengt
             $task->setHierarchyLevel($tmp_arr[1]);
             $task->setStartDatePlan($tmp_arr[2]);
             $task->setEndDatePlan($tmp_arr[3]);
-            $task->setDeadline($tmp_arr[4]);
+            //$task->setDeadline($tmp_arr[4]);
+            $task->setDeadline($tmp_arr[3]);
             $task->setHierarchyTags();
             array_push($taskArray, $task);
 
@@ -296,7 +298,8 @@ function make_tasks_from_xml($userId, $fileName, $folderName = null) {
          $task->setHierarchyLevel((string)$xmlTask->WBS);
          $task->setStartDatePlan((string)$xmlTask->Start);
          $task->setEndDatePlan((string)$xmlTask->Finish);
-         $task->setDeadline((string)$xmlTask->LateFinish);
+         //$task->setDeadline((string)$xmlTask->LateFinish);
+         $task->setDeadline((string)$xmlTask->Finish);
          $task->setHierarchyTags();
          array_push($taskArray, $task);
          }
